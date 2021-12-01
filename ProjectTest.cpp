@@ -8,37 +8,100 @@ Description:Implement a serial communication between host PC and mbed device (Ar
 
 #include <Windows.h>
 #include <tchar.h>
-#include <assert.h>
 #include <stdio.h>
+#include <strsafe.h>
+
+#define READ_TIMEOUT    500  //ms
+#define BUFFERSIZE      5
+DWORD g_BytesTransferred = 0;
+
+//void DisplayError(LPTSTR lpszFunction);
+
+VOID CALLBACK FileIOCompletionRoutine(
+    __in  DWORD dwErrorCode,
+    __in  DWORD dwNumberOfBytesTransfered,
+    __in  LPOVERLAPPED lpOverlapped
+);
+
+VOID CALLBACK FileIOCompletionRoutine(
+    __in  DWORD dwErrorCode,
+    __in  DWORD dwNumberOfBytesTransfered,
+    __in  LPOVERLAPPED lpOverlapped)
+{
+    _tprintf(TEXT("Error code:\t%x\n"), dwErrorCode);
+    _tprintf(TEXT("Number of bytes:\t%x\n"), dwNumberOfBytesTransfered);
+    g_BytesTransferred = dwNumberOfBytesTransfered;
+}
 
 int main()
 {
-    HANDLE hFile;
-    OVERLAPPED o;
-    BOOL fSuccess;
-    DWORD dwEvtMask;   
+    HANDLE hComm;
+    DWORD dwBytesRead = 0;
+    BOOL fWaitingOnRead = FALSE;
+    OVERLAPPED ol = { 0 };
+    char ReadBuffer[BUFFERSIZE] = { 0 };
+
+    /*OVERLAPPED o;
+    BOOL fSuccess; 
+    DWORD dwEvtMask;*/
     
-    hFile = CreateFile(
+    hComm = CreateFile(
         L"COM6",
         GENERIC_READ | GENERIC_WRITE,
-        NULL,
-        NULL,
+        0,
+        0,
         OPEN_EXISTING,
-        FILE_ATTRIBUTE_NORMAL,
-        NULL);
+        FILE_FLAG_OVERLAPPED,
+        0);
 
-    if (hFile == INVALID_HANDLE_VALUE) {
+    if (hComm == INVALID_HANDLE_VALUE) {
         printf("CreateFile failed with error %d.\n", GetLastError());
-        return 1;
+        return GetLastError();
+    }
+    else {
+        printf("CreateFile initialized successfully\n");
+    }
+
+    if (FALSE == ReadFileEx(hComm, ReadBuffer, BUFFERSIZE - 1, &ol, FileIOCompletionRoutine))
+    {
+        //DisplayError(TEXT("ReadFile"));
+        printf("Terminal failure: Unable to read from file.\n GetLastError=%08x\n", GetLastError());
+        CloseHandle(hComm);
+        return -1;
     }
     
-    //mask event
+    SleepEx(5000, TRUE);
+    
+    printf("Value in ReadBuffer:\t%s.\n", ReadBuffer);
+    
+    
+    /*dwBytesRead = g_BytesTransferred;
+    // This is the section of code that assumes the file is ANSI text. 
+    // Modify this block for other data types if needed.
 
-    fSuccess = SetCommMask(hFile, EV_CTS | EV_DSR);
+    if (dwBytesRead > 0 && dwBytesRead <= BUFFERSIZE - 1)
+    {
+        ReadBuffer[dwBytesRead] = '\0'; // NULL character
+
+        _tprintf(TEXT("Data read from COM6 (%d bytes): \n"), dwBytesRead);
+        printf("%s\n", ReadBuffer);
+    }
+    else if (dwBytesRead == 0)
+    {
+        _tprintf(TEXT("No data read from file COM6\n"));
+    }
+    else
+    {
+        printf("\n ** Unexpected value for dwBytesRead ** \n");
+    }*/
+
+    /*
+    //mask event
+    fSuccess = SetCommMask(hComm, EV_CTS | EV_DSR);
 
     if (!fSuccess) {
         printf("SetCommMask failed with error %d.\n", GetLastError());
-        return 1;
+        return GetLastError();
     }
     //event object for use by WaitCommEvent
     o.hEvent = CreateEvent(
@@ -55,7 +118,7 @@ int main()
 
     assert(o.hEvent);
 
-    if (WaitCommEvent(hFile, &dwEvtMask, &o))
+    if (WaitCommEvent(hComm, &dwEvtMask, &o))
     {
         if (dwEvtMask & EV_DSR)
         {
@@ -81,8 +144,8 @@ int main()
         else
             printf("Wait failed with error %d.\n", GetLastError());
     }
-
-    CloseHandle(hFile); //closes the COM port
+    */
+    CloseHandle(hComm); //closes the COM port
 
     return 0;
 }
