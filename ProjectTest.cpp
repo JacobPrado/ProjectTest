@@ -12,7 +12,7 @@ Description:Implement a serial communication between host PC and mbed device (Ar
 #include <strsafe.h>
 
 #define READ_TIMEOUT    500  //ms
-#define BUFFERSIZE      5
+#define BUFFERSIZE      100
 DWORD g_BytesTransferred = 0;
 
 //void DisplayError(LPTSTR lpszFunction);
@@ -33,13 +33,17 @@ VOID CALLBACK FileIOCompletionRoutine(
     g_BytesTransferred = dwNumberOfBytesTransfered;
 }
 
+HANDLE hComm;
+DWORD dwBytesRead = 0;
+LPDWORD lpNBytesRead = 0;
+BOOL fWaitingOnRead = FALSE;
+OVERLAPPED ol = { 0 };
+LPOVERLAPPED LPol = { 0 };
+char ReadBuffer[BUFFERSIZE] = "Hello World!";
+
 int main()
 {
-    HANDLE hComm;
-    DWORD dwBytesRead = 0;
-    BOOL fWaitingOnRead = FALSE;
-    OVERLAPPED ol = { 0 };
-    char ReadBuffer[BUFFERSIZE] = { 0 };
+    
 
     /*OVERLAPPED o;
     BOOL fSuccess; 
@@ -51,7 +55,7 @@ int main()
         0,
         0,
         OPEN_EXISTING,
-        FILE_FLAG_OVERLAPPED,
+        NULL,
         0);
 
     if (hComm == INVALID_HANDLE_VALUE) {
@@ -61,19 +65,20 @@ int main()
     else {
         printf("CreateFile initialized successfully\n");
     }
+    while (1) {
 
-    if (FALSE == ReadFileEx(hComm, ReadBuffer, BUFFERSIZE - 1, &ol, FileIOCompletionRoutine))
-    {
-        //DisplayError(TEXT("ReadFile"));
-        printf("Terminal failure: Unable to read from file.\n GetLastError=%08x\n", GetLastError());
-        CloseHandle(hComm);
-        return -1;
+        if (FALSE == ReadFile(hComm, ReadBuffer, BUFFERSIZE - 1, &dwBytesRead, NULL))
+        {
+            //DisplayError(TEXT("ReadFile"));
+            printf("Terminal failure: Unable to read from file.\n GetLastError=%08x\n", GetLastError());
+            CloseHandle(hComm);
+            return -1;
+        }
+
+        SleepEx(5000, TRUE);
+
+        printf("Value in ReadBuffer: %s.\n", ReadBuffer);
     }
-    
-    SleepEx(5000, TRUE);
-    
-    printf("Value in ReadBuffer:\t%s.\n", ReadBuffer);
-    
     
     /*dwBytesRead = g_BytesTransferred;
     // This is the section of code that assumes the file is ANSI text. 
